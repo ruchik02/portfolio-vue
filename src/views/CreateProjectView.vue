@@ -33,13 +33,36 @@
               <!-- Project Tags -->
               <v-combobox
                 v-model="tags"
+                :items="availableTags"
                 label="Tags"
                 multiple
                 chips
                 variant="outlined"
                 class="mb-4"
                 :rules="tagRules"
-              ></v-combobox>
+                @update:model-value="handleTagUpdate"
+                placeholder="Enter to add new tag"
+                hide-details
+              >
+                <template v-slot:selection="{ item, index }">
+                  <v-chip
+                    v-if="index < 3"
+                    :key="index"
+                    size="small"
+                    closable
+                    color="primary"
+                    variant="tonal"
+                  >
+                    {{ item.title || item }}
+                  </v-chip>
+                  <span
+                    v-if="index === 3"
+                    class="text-caption grey--text text--darken-1 mx-2"
+                  >
+                    (+{{ tags.length - 3 }} more)
+                  </span>
+                </template>
+              </v-combobox>
 
               <!-- Thumbnail Upload -->
               <v-file-input
@@ -118,8 +141,10 @@ export default {
         v => v.length >= 10 || 'Description must be at least 10 characters'
       ],
       tagRules: [
-        v => v.length <= 5 || 'Maximum 5 tags allowed'
+        v => !v || v.length <= 10 || 'Maximum 10 tags allowed',
+        v => !v || v.every(tag => (typeof tag === 'string' ? tag.length <= 20 : tag.title.length <= 20)) || 'Tag must be less than 20 characters'
       ],
+      availableTags: [],
       thumbnailRules: [
         v => !v || v.size < 5000000 || 'Image size should be less than 5 MB',
         v => !v || v.type.startsWith('image/') || 'File must be an image'
@@ -129,7 +154,8 @@ export default {
   methods: {
     ...mapActions({
       createProject: 'projects/createProject',
-      fetchProjects: 'projects/fetchProjects'
+      fetchProjects: 'projects/fetchProjects',
+      fetchExploreProjects: 'projects/fetchExploreProjects'
     }),
     previewThumbnail(file) {
       if (this.thumbnailPreview) {
@@ -148,6 +174,29 @@ export default {
         this.thumbnailPreview = URL.createObjectURL(imageFile)
       } else {
         this.thumbnailPreview = null
+      }
+    },
+    handleTagUpdate(newTags) {
+      // Filter out empty tags and trim whitespace
+      this.tags = newTags
+        .map(tag => {
+          if (typeof tag === 'string') {
+            return tag.trim().toLowerCase()
+          }
+          return tag.title ? tag.title.trim().toLowerCase() : ''
+        })
+        .filter(tag => tag && tag.length > 0)
+        // Remove duplicates
+        .filter((tag, index, self) => self.indexOf(tag) === index)
+        // Limit to 5 tags
+        .slice(0, 5)
+    },
+    async loadAvailableTags() {
+      try {
+        const result = await this.fetchExploreProjects({ limit: 1 })
+        this.availableTags = result.tags || []
+      } catch (error) {
+        console.error('Error loading tags:', error)
       }
     },
     async handleSubmit() {
@@ -193,6 +242,9 @@ export default {
     if (this.thumbnailPreview) {
       URL.revokeObjectURL(this.thumbnailPreview)
     }
+  },
+  async created() {
+    await this.loadAvailableTags()
   }
 }
 </script>
@@ -213,5 +265,20 @@ export default {
 .v-img {
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.v-combobox :deep(.v-field__input) {
+  min-height: 44px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.v-combobox :deep(.v-field) {
+  height: auto !important;
+  min-height: 44px !important;
+}
+
+.v-combobox :deep(.v-chip) {
+  margin: 2px;
 }
 </style> 

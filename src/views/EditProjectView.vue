@@ -44,6 +44,7 @@
             <!-- Tags Input -->
             <v-combobox
               v-model="projectData.tags"
+              :items="availableTags"
               label="Tags"
               multiple
               chips
@@ -51,18 +52,26 @@
               class="mb-4"
               :rules="tagRules"
               @update:model-value="handleTagUpdate"
+              placeholder="Enter to add new tag"
+              hide-details
             >
-              <template v-slot:chip="{ props, item }">
+              <template v-slot:selection="{ item, index }">
                 <v-chip
-                  v-bind="props"
-                  :color="getTagColor(item.raw || item)"
+                  v-if="index < 3"
+                  :key="index"
+                  size="small"
                   closable
-                  class="tag-chip"
-                  variant="elevated"
-                  label
+                  color="primary"
+                  variant="tonal"
                 >
-                  {{ item.raw || item }}
+                  {{ item.title || item }}
                 </v-chip>
+                <span
+                  v-if="index === 3"
+                  class="text-caption grey--text text--darken-1 mx-2"
+                >
+                  (+{{ projectData.tags.length - 3 }} more)
+                </span>
               </template>
             </v-combobox>
 
@@ -137,12 +146,14 @@ export default {
         v => v.length <= 500 || 'Description must be less than 500 characters'
       ],
       tagRules: [
-        v => v.length <= 5 || 'Maximum 5 tags allowed'
+        v => !v || v.length <= 10 || 'Maximum 10 tags allowed',
+        v => !v || v.every(tag => (typeof tag === 'string' ? tag.length <= 20 : tag.title.length <= 20)) || 'Tag must be less than 20 characters'
       ],
       thumbnailRules: [
         v => !v || v.size < 5000000 || 'Image size should be less than 5 MB',
         v => !v || v.type.startsWith('image/') || 'File must be an image'
       ],
+      availableTags: [],
     }
   },
   computed: {
@@ -153,7 +164,8 @@ export default {
   methods: {
     ...mapActions({
       fetchProject: 'projects/fetchProject',
-      updateProject: 'projects/updateProject'
+      updateProject: 'projects/updateProject',
+      fetchExploreProjects: 'projects/fetchExploreProjects'
     }),
 
     async loadProjectData() {
@@ -176,6 +188,10 @@ export default {
           tags: project.tags || [],
           thumbnail: project.thumbnail
         }
+
+        // Add this to fetch available tags
+        const result = await this.fetchExploreProjects({ limit: 1 })
+        this.availableTags = result.tags || []
       } catch (error) {
         console.error('Error loading project:', error)
         if (this.$toast) {
@@ -189,27 +205,21 @@ export default {
     handleTagUpdate(newTags) {
       // Filter out empty tags and trim whitespace
       this.projectData.tags = newTags
-        .map(tag => typeof tag === 'string' ? tag.trim().toLowerCase() : tag)
+        .map(tag => {
+          if (typeof tag === 'string') {
+            return tag.trim().toLowerCase()
+          }
+          return tag.title ? tag.title.trim().toLowerCase() : ''
+        })
         .filter(tag => tag && tag.length > 0)
+      // Remove duplicates
+      .filter((tag, index, self) => self.indexOf(tag) === index)
+      // Limit to 5 tags
+      .slice(0, 5)
     },
 
     getTagColor(tag) {
-      const tagColors = {
-        html: 'orange',
-        css: 'blue',
-        javascript: 'yellow darken-2',
-        vue: 'green',
-        react: 'light-blue',
-        angular: 'red',
-        firebase: 'amber darken-2',
-        nodejs: 'green darken-2',
-        python: 'blue darken-2',
-        java: 'deep-orange',
-        typescript: 'blue-grey',
-        php: 'purple',
-        ruby: 'red darken-2'
-      }
-      return tagColors[tag.toLowerCase()] || 'grey'
+      return 'default' // Simplified to match CreateProjectView
     },
 
     handleThumbnailChange(file) {
@@ -274,33 +284,17 @@ export default {
 
 <style scoped>
 .v-combobox :deep(.v-field__input) {
-  padding-top: 0;
-  padding-bottom: 0;
-  min-height: 56px;
-  caret-color: auto !important;
+  min-height: 44px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
 }
 
-.v-combobox :deep(.v-field__input input) {
-  min-width: 50px;
+.v-combobox :deep(.v-field) {
+  height: auto !important;
+  min-height: 44px !important;
 }
 
-.v-combobox :deep(.v-chip.tag-chip) {
-  border-radius: 50px;
-  padding: 0 16px;
-  height: 32px;
-  font-weight: 500;
-  text-transform: lowercase;
-  letter-spacing: 0.5px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+.v-combobox :deep(.v-chip) {
   margin: 2px;
-}
-
-.v-combobox :deep(.v-chip.tag-chip .v-chip__close) {
-  opacity: 0.7;
-  margin-left: 4px;
-}
-
-.v-combobox :deep(.v-chip.tag-chip .v-chip__close:hover) {
-  opacity: 1;
 }
 </style> 

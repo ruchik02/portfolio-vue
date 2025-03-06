@@ -98,8 +98,9 @@
                 v-for="tag in project.tags"
                 :key="tag"
                 color="primary"
-                variant="outlined"
+                variant="tonal"
                 size="small"
+                class="mr-1"
               >
                 {{ tag }}
               </v-chip>
@@ -190,21 +191,31 @@
                       </div>
                     </div>
 
-                    <!-- Delete Button -->
-                    <v-btn
-                      v-if="currentUser && (comment.userId === currentUser.uid || project.userId === currentUser.uid)"
-                      icon="mdi-delete"
-                      variant="text"
-                      size="small"
-                      color="error"
-                      @click="confirmDeleteComment(comment)"
-                      :loading="deleteCommentLoading && commentToDelete?.id === comment.id"
-                      class="ml-auto"
-                    >
-                      <v-tooltip activator="parent" location="left">
-                        Delete comment
-                      </v-tooltip>
-                    </v-btn>
+                    <!-- Updated Delete Button -->
+                    <v-menu v-if="currentUser && (comment.userId === currentUser.uid || project.userId === currentUser.uid)">
+                      <template v-slot:activator="{ props }">
+                        <v-btn
+                          icon
+                          variant="text"
+                          v-bind="props"
+                          size="small"
+                        >
+                          <v-icon>mdi-dots-vertical</v-icon>
+                        </v-btn>
+                      </template>
+
+                      <v-list>
+                        <v-list-item
+                          @click="confirmDeleteComment(comment)"
+                          color="error"
+                        >
+                          <template v-slot:prepend>
+                            <v-icon color="error">mdi-delete</v-icon>
+                          </template>
+                          <v-list-item-title>Delete Comment</v-list-item-title>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
                   </div>
                 </v-list-item>
               </template>
@@ -262,11 +273,11 @@
                   alt="Creator"
                 ></v-img>
                 <span v-else class="text-h6 text-white">
-                  {{ (project.userName || 'Anonymous').charAt(0).toUpperCase() }}
+                  {{ currentUser?.name  }}
                 </span>
               </v-avatar>
               <div>
-                <div class="text-body-1">{{ project.userName || 'Anonymous' }}</div>
+                <div class="text-body-1">{{ currentUser?.name }}</div>
                 <div class="text-caption text-grey-darken-1">
                   {{ formatDate(project.createdAt) }}
                 </div>
@@ -384,14 +395,14 @@
     <!-- Delete Comment Dialog -->
     <v-dialog v-model="showDeleteCommentDialog" max-width="400">
       <v-card>
-        <v-card-title>Delete Comment</v-card-title>
+        <v-card-title class="text-h5">Delete Comment</v-card-title>
         <v-card-text>
-          Are you sure you want to delete this comment?
+          Are you sure you want to delete this comment? This action cannot be undone.
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn
-            color="grey"
+            color="grey-darken-1"
             variant="text"
             @click="showDeleteCommentDialog = false"
           >
@@ -400,8 +411,8 @@
           <v-btn
             color="error"
             variant="text"
-            :loading="deleteCommentLoading"
             @click="deleteComment"
+            :loading="deleteCommentLoading"
           >
             Delete
           </v-btn>
@@ -465,7 +476,6 @@ export default {
       newComment: '',
       projectData: null,
       commentRules: [
-        v => !!v || 'Comment is required',
         v => v.length <= 500 || 'Comment must be less than 500 characters'
       ],
       showDeleteCommentDialog: false,
