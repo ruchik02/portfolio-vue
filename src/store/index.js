@@ -3,6 +3,7 @@ import auth from './modules/auth'
 import projects from './modules/projects'
 import notifications from './modules/notifications'
 import theme from './modules/theme'
+import bookmark from './modules/bookmark'
 
 export default createStore({
   state: {
@@ -18,6 +19,7 @@ export default createStore({
     auth,
     projects,
     notifications,
-    theme
+    theme,
+    bookmark
   }
 }) 
