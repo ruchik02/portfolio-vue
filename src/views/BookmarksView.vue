@@ -24,7 +24,7 @@
 
     <!-- Bookmarks Grid -->
     <template v-else>
-      <v-row v-if="bookmarks.length">
+      <v-row v-if="bookmarks && bookmarks.length">
         <v-col
           v-for="bookmark in bookmarks"
           :key="bookmark.id"
