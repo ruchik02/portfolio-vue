@@ -81,12 +81,12 @@ const routes = [
     component: BookmarksView,
     meta: { requiresAuth: true }
   },
-  {
-    path: '/analytics',
-    name: 'analytics',
-    component: AnalyticsView,
-    meta: { requiresAuth: true }
-  },
+  // {
+  //   path: '/analytics',
+  //   name: 'analytics',
+  //   component: AnalyticsView,
+  //   meta: { requiresAuth: true }
+  // },
   {
     path: '/support',
     name: 'support',

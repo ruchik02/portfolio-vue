@@ -95,11 +95,11 @@ export default {
           path: '/bookmarks',
           icon: 'mdi-bookmark'
         },
-        {
-          title: 'Analytics',
-          path: '/analytics',
-          icon: 'mdi-chart-bar'
-        },
+        // {
+        //   title: 'Analytics',
+        //   path: '/analytics',
+        //   icon: 'mdi-chart-bar'
+        // },
         {
           title: 'Help & Support',
           path: '/support',

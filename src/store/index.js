@@ -4,6 +4,7 @@ import projects from './modules/projects'
 import notifications from './modules/notifications'
 import theme from './modules/theme'
 import bookmark from './modules/bookmark'
+import analytics from './modules/analytics'
 
 export default createStore({
   state: {
@@ -20,6 +21,7 @@ export default createStore({
     projects,
     notifications,
     theme,
-    bookmark
+    bookmark,
+    analytics
   }
 }) 
