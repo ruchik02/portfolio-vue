@@ -12,7 +12,8 @@ import {
   serverTimestamp,
   getDoc,
   arrayRemove,
-  arrayUnion
+  arrayUnion,
+  Timestamp
 } from 'firebase/firestore'
 import { 
   ref, 
@@ -151,37 +152,83 @@ export default {
     },
 
     async fetchUserStats({ commit, rootState }) {
+      const user = rootState.auth.user
+      if (!user) return null
+
       try {
-        // Fetch all projects for the current user
         const projectsRef = collection(db, 'projects')
-        const q = query(
-          projectsRef,
-          where('userId', '==', rootState.auth.user?.uid),
-          orderBy('createdAt', 'desc')
-        )
+        const q = query(projectsRef, where('userId', '==', user.uid))
         const snapshot = await getDocs(q)
         
-        // Calculate stats from the projects
-        const stats = {
-          totalProjects: snapshot.size,
-          totalViews: 0,
-          totalLikes: 0,
-          completionRate: 0
-        }
+        let totalLikes = 0
+        let totalViews = 0
+        let totalProjects = 0
 
-        snapshot.docs.forEach(doc => {
-          const data = doc.data()
-          stats.totalViews += data.views || 0
-          stats.totalLikes += (Array.isArray(data.likes) ? data.likes.length : 0)
+        snapshot.forEach(doc => {
+          const project = doc.data()
+          totalProjects++
+          totalLikes += project.likes?.length || 0
+          totalViews += project.views || 0
         })
 
-        // Calculate completion rate if needed
-        stats.completionRate = (stats.totalProjects > 0) 
-          ? Math.round((stats.totalViews / stats.totalProjects) * 100)
-          : 0
+        // Calculate current period stats
+        const now = new Date()
+        const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000))
+        
+        let currentStats = {
+          projects: 0,
+          views: 0,
+          likes: 0
+        }
+        
+        let previousStats = {
+          projects: 0,
+          views: 0,
+          likes: 0
+        }
 
-        commit('SET_STATS', stats)
-        return stats
+        snapshot.forEach(doc => {
+          const project = doc.data()
+          const createdAt = project.createdAt?.toDate() || new Date()
+          
+          // Count total stats
+          currentStats.projects++
+          currentStats.views += project.views || 0
+          currentStats.likes += project.likes?.length || 0
+          
+          // Count previous period stats for projects created before 30 days ago
+          if (createdAt < thirtyDaysAgo) {
+            previousStats.projects++
+            previousStats.views += project.views || 0
+            previousStats.likes += project.likes?.length || 0
+          }
+        })
+
+        // Calculate percentage increases
+        const calculateIncrease = (current, previous) => {
+          if (previous === 0) {
+            return current > 0 ? 100 : null // Return null when no previous data
+          }
+          return Math.round(((current - previous) / previous) * 100)
+        }
+
+        // Calculate progress values
+        const calculateProgress = (current, previous) => {
+          if (previous === 0) return current > 0 ? 50 : 0
+          return Math.min(100, (current / Math.max(1, previous)) * 50)
+        }
+
+        return {
+          totalProjects,
+          totalLikes,
+          totalViews,
+          projectsIncrease: calculateIncrease(currentStats.projects, previousStats.projects),
+          viewsIncrease: calculateIncrease(currentStats.views, previousStats.views),
+          likesIncrease: calculateIncrease(currentStats.likes, previousStats.likes),
+          projectsProgress: calculateProgress(currentStats.projects, previousStats.projects),
+          viewsProgress: calculateProgress(currentStats.views, previousStats.views),
+          likesProgress: calculateProgress(currentStats.likes, previousStats.likes)
+        }
       } catch (error) {
         console.error('Error fetching user stats:', error)
         throw error
@@ -189,28 +236,27 @@ export default {
     },
 
     async fetchRecentProjects({ rootState }) {
+      const user = rootState.auth.user
+      if (!user) return []
+
       try {
         const projectsRef = collection(db, 'projects')
         const q = query(
           projectsRef,
-          where('userId', '==', rootState.auth.user?.uid),
+          where('userId', '==', user.uid),
           orderBy('createdAt', 'desc'),
-          limit(3)
+          limit(6)
         )
+
         const snapshot = await getDocs(q)
-        
-        const userId = rootState.auth.user?.uid
         return snapshot.docs.map(doc => {
           const data = doc.data()
-          const likes = Array.isArray(data.likes) ? data.likes : []
-          
           return {
             id: doc.id,
             ...data,
-            likes,
-            isLiked: likes.includes(userId),
-            likeCount: likes.length,
-            createdAt: data.createdAt?.toDate() || new Date()
+            isLiked: data.likes?.includes(user.uid) || false,
+            likesCount: data.likes?.length || 0,
+            createdAt: data.createdAt?.toDate()
           }
         })
       } catch (error) {
@@ -535,43 +581,43 @@ export default {
     },
 
     async toggleLike({ commit, rootState }, project) {
-      try {
-        const userId = rootState.auth.user?.uid
-        if (!userId) throw new Error('User not authenticated')
+      if (!rootState.auth.user) return project
 
-        const projectRef = doc(db, 'projects', project.id)
+      const userId = rootState.auth.user.uid
+      const projectRef = doc(db, 'projects', project.id)
+
+      try {
+        // Get fresh project data
         const projectDoc = await getDoc(projectRef)
-        
         if (!projectDoc.exists()) {
           throw new Error('Project not found')
         }
 
-        const currentData = projectDoc.data()
-        // Ensure likes is an array
-        const currentLikes = Array.isArray(currentData.likes) ? currentData.likes : []
-        const isLiked = currentLikes.includes(userId)
+        const currentProject = projectDoc.data()
+        const likes = currentProject.likes || []
+        const isLiked = likes.includes(userId)
 
-        // Update Firestore
-        await updateDoc(projectRef, {
-          likes: isLiked ? arrayRemove(userId) : arrayUnion(userId)
-        })
-
-        // Get fresh data
-        const updatedDoc = await getDoc(projectRef)
-        const updatedData = updatedDoc.data()
-        const updatedLikes = Array.isArray(updatedData.likes) ? updatedData.likes : []
-
-        // Update local state
-        const updatedProject = {
-          ...project,
-          likes: updatedLikes,
-          likeCount: updatedLikes.length,
-          isLiked: updatedLikes.includes(userId)
+        // Update likes array
+        let updatedLikes
+        if (isLiked) {
+          updatedLikes = likes.filter(id => id !== userId)
+        } else {
+          updatedLikes = [...likes, userId]
         }
 
-        commit('UPDATE_PROJECT', updatedProject)
-        return updatedProject
+        // Update project in Firestore
+        await updateDoc(projectRef, {
+          likes: updatedLikes,
+          updatedAt: Timestamp.now()
+        })
 
+        // Return updated project data
+        return {
+          ...project,
+          likes: updatedLikes,
+          isLiked: !isLiked,
+          likesCount: updatedLikes.length
+        }
       } catch (error) {
         console.error('Error toggling like:', error)
         throw error

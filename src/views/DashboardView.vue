@@ -91,14 +91,30 @@
               </div>
               <div class="text-h3 font-weight-bold mb-2">{{ stats.totalProjects || 0 }}</div>
               <v-progress-linear
-                :model-value="70"
+                :model-value="stats.projectsProgress || 0"
                 color="primary"
                 height="8"
                 rounded
               ></v-progress-linear>
               <div class="d-flex align-center mt-2">
-                <v-icon color="success" size="small" class="mr-1">mdi-trending-up</v-icon>
-                <span class="text-caption text-success">12% increase</span>
+                <template v-if="stats.projectsIncrease !== null">
+                  <v-icon 
+                    :color="stats.projectsIncrease >= 0 ? 'primary' : 'error'" 
+                    size="small" 
+                    class="mr-1"
+                  >
+                    {{ stats.projectsIncrease >= 0 ? 'mdi-trending-up' : 'mdi-trending-down' }}
+                  </v-icon>
+                  <span 
+                    class="text-caption"
+                    :class="stats.projectsIncrease >= 0 ? 'text-primary' : 'text-error'"
+                  >
+                    {{ Math.abs(stats.projectsIncrease) }}% {{ stats.projectsIncrease >= 0 ? 'increase' : 'decrease' }}
+                  </span>
+                </template>
+                <template v-else>
+                  <span class="text-caption text-medium-emphasis">No previous data</span>
+                </template>
               </div>
             </v-card-text>
           </v-card>
@@ -113,14 +129,30 @@
               </div>
               <div class="text-h3 font-weight-bold mb-2">{{ stats.totalViews || 0 }}</div>
               <v-progress-linear
-                :model-value="50"
+                :model-value="stats.viewsProgress || 0"
                 color="success"
                 height="8"
                 rounded
               ></v-progress-linear>
               <div class="d-flex align-center mt-2">
-                <v-icon color="success" size="small" class="mr-1">mdi-trending-up</v-icon>
-                <span class="text-caption text-success">8% increase</span>
+                <template v-if="stats.viewsIncrease !== null">
+                  <v-icon 
+                    :color="stats.viewsIncrease >= 0 ? 'success' : 'error'" 
+                    size="small" 
+                    class="mr-1"
+                  >
+                    {{ stats.viewsIncrease >= 0 ? 'mdi-trending-up' : 'mdi-trending-down' }}
+                  </v-icon>
+                  <span 
+                    class="text-caption"
+                    :class="stats.viewsIncrease >= 0 ? 'text-success' : 'text-error'"
+                  >
+                    {{ Math.abs(stats.viewsIncrease) }}% {{ stats.viewsIncrease >= 0 ? 'increase' : 'decrease' }}
+                  </span>
+                </template>
+                <template v-else>
+                  <span class="text-caption text-medium-emphasis">No previous data</span>
+                </template>
               </div>
             </v-card-text>
           </v-card>
@@ -135,14 +167,30 @@
               </div>
               <div class="text-h3 font-weight-bold mb-2">{{ stats.totalLikes || 0 }}</div>
               <v-progress-linear
-                :model-value="30"
+                :model-value="stats.likesProgress || 0"
                 color="error"
                 height="8"
                 rounded
               ></v-progress-linear>
               <div class="d-flex align-center mt-2">
-                <v-icon color="success" size="small" class="mr-1">mdi-trending-up</v-icon>
-                <span class="text-caption text-success">15% increase</span>
+                <template v-if="stats.likesIncrease !== null">
+                  <v-icon 
+                    :color="stats.likesIncrease >= 0 ? 'error' : 'error'" 
+                    size="small" 
+                    class="mr-1"
+                  >
+                    {{ stats.likesIncrease >= 0 ? 'mdi-trending-up' : 'mdi-trending-down' }}
+                  </v-icon>
+                  <span 
+                    class="text-caption"
+                    :class="stats.likesIncrease >= 0 ? 'text-error' : 'text-error'"
+                  >
+                    {{ Math.abs(stats.likesIncrease) }}% {{ stats.likesIncrease >= 0 ? 'increase' : 'decrease' }}
+                  </span>
+                </template>
+                <template v-else>
+                  <span class="text-caption text-medium-emphasis">No previous data</span>
+                </template>
               </div>
             </v-card-text>
           </v-card>
@@ -491,7 +539,13 @@ export default {
       stats: {
         totalProjects: 0,
         totalViews: 0,
-        totalLikes: 0
+        totalLikes: 0,
+        projectsIncrease: null,
+        viewsIncrease: null,
+        likesIncrease: null,
+        projectsProgress: 0,
+        viewsProgress: 0,
+        likesProgress: 0
       },
       likeLoadingMap: {},
       shareDialog: false,
@@ -533,17 +587,30 @@ export default {
         const updateProject = (arr) => {
           const index = arr.findIndex(p => p.id === project.id)
           if (index !== -1) {
-            arr.splice(index, 1, updatedProject)
+            // Update all relevant project properties
+            arr[index] = {
+              ...arr[index],
+              likes: updatedProject.likes,
+              isLiked: updatedProject.isLiked,
+              likesCount: updatedProject.likes?.length || 0
+            }
           }
         }
         
         updateProject(this.recentProjects)
         updateProject(this.filteredProjects)
         
-        // Update stats
-        await this.fetchUserStats()
+        // Update stats immediately
+        this.stats.totalLikes = (this.stats.totalLikes || 0) + (updatedProject.isLiked ? 1 : -1)
+        
+        // Fetch fresh stats from server
+        const newStats = await this.fetchUserStats()
+        this.stats = { ...this.stats, ...newStats }
       } catch (error) {
         console.error('Error toggling like:', error)
+        if (this.$toast) {
+          this.$toast.error('Failed to update like')
+        }
       } finally {
         this.setLikeLoading(project.id, false)
       }
