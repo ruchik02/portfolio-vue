@@ -251,17 +251,22 @@ export default {
         const snapshot = await getDocs(q)
         return snapshot.docs.map(doc => {
           const data = doc.data()
+          // Ensure likes is always an array
+          const likes = Array.isArray(data.likes) ? data.likes : []
+          
           return {
             id: doc.id,
             ...data,
-            isLiked: data.likes?.includes(user.uid) || false,
-            likesCount: data.likes?.length || 0,
-            createdAt: data.createdAt?.toDate()
+            likes, // Add the normalized likes array
+            isLiked: likes.includes(user.uid),
+            likesCount: likes.length,
+            createdAt: data.createdAt?.toDate() || new Date()
           }
         })
       } catch (error) {
         console.error('Error fetching recent projects:', error)
-        throw error
+        // Return empty array instead of throwing to prevent UI breaks
+        return []
       }
     },
 
@@ -708,6 +713,31 @@ export default {
       } catch (error) {
         console.error('Error initializing app:', error)
         throw error
+      }
+    },
+
+    async fetchProjectAnalytics({ rootState }, projectId) {
+      const projectRef = doc(db, 'projects', projectId)
+      
+      // Use sub-collections for detailed analytics
+      const analyticsRef = collection(projectRef, 'analytics')
+      const viewsRef = collection(analyticsRef, 'views')
+      const likesRef = collection(analyticsRef, 'likes')
+      
+      const [viewsSnap, likesSnap] = await Promise.all([
+        getDocs(viewsRef),
+        getDocs(likesRef)
+      ])
+
+      return {
+        viewsHistory: viewsSnap.docs.map(doc => ({
+          date: doc.id,
+          count: doc.data().count
+        })),
+        likesHistory: likesSnap.docs.map(doc => ({
+          date: doc.id,
+          count: doc.data().count
+        }))
       }
     }
   },

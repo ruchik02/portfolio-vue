@@ -587,12 +587,14 @@ export default {
         const updateProject = (arr) => {
           const index = arr.findIndex(p => p.id === project.id)
           if (index !== -1) {
-            // Update all relevant project properties
+            // Ensure likes is always an array
+            const likes = Array.isArray(updatedProject.likes) ? updatedProject.likes : []
+            
             arr[index] = {
               ...arr[index],
-              likes: updatedProject.likes,
-              isLiked: updatedProject.isLiked,
-              likesCount: updatedProject.likes?.length || 0
+              likes,
+              isLiked: likes.includes(this.currentUser?.uid),
+              likesCount: likes.length
             }
           }
         }
@@ -601,7 +603,8 @@ export default {
         updateProject(this.filteredProjects)
         
         // Update stats immediately
-        this.stats.totalLikes = (this.stats.totalLikes || 0) + (updatedProject.isLiked ? 1 : -1)
+        const likeDiff = updatedProject.isLiked ? 1 : -1
+        this.stats.totalLikes = Math.max(0, (this.stats.totalLikes || 0) + likeDiff)
         
         // Fetch fresh stats from server
         const newStats = await this.fetchUserStats()

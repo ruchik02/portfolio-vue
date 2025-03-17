@@ -1,5 +1,5 @@
 import { db } from '@/firebase/config'
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore'
+import { collection, query, where, getDocs, orderBy, limit, onSnapshot } from 'firebase/firestore'
 
 export default {
   namespaced: true,
@@ -103,6 +103,34 @@ export default {
         console.error('Error fetching top projects:', error)
         throw error
       }
+    },
+
+    async setupRealtimeStats({ commit, rootState }) {
+      const user = rootState.auth.user
+      if (!user) return null
+
+      const projectsRef = collection(db, 'projects')
+      const q = query(projectsRef, where('userId', '==', user.uid))
+
+      // Setup real-time listener
+      return onSnapshot(q, (snapshot) => {
+        let stats = {
+          totalProjects: 0,
+          totalViews: 0,
+          totalLikes: 0,
+          totalComments: 0
+        }
+
+        snapshot.forEach(doc => {
+          const project = doc.data()
+          stats.totalProjects++
+          stats.totalViews += project.views || 0
+          stats.totalLikes += project.likes?.length || 0
+          stats.totalComments += project.comments?.length || 0
+        })
+
+        commit('SET_STATS', stats)
+      })
     }
   }
 } 
